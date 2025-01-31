@@ -57,12 +57,16 @@ namespace FAMILY_INSTANSE_MAPPER
                     "Колонна_Длина",
                     "Колонна_Ширина",
                     "Колонна_Высота",
-                    "Смещение_ВБ_Снизу",
-                    "Разбежка_Снизу",
-                    "Смещение_ВБ_Сверху",
-                    "Разбежка_Сверху",
+                    "ВБ_СмещениеСнизу",
+                    "ВБ_РазбежкаСнизу",
+                    "ВБ_СмещениеСверху",
+                    "ВБ_РазбежкаСверху",
                     "Расстояние от грани колонны до центра стержня",
-                    "Диаметр_ВБ"
+                    "ВБ_Диаметр арматуры",
+                    "ADSK_Марка изделия",
+                    "ADSK_Категория основы",
+                    "ADSK_Метка основы",
+                    "ADSK_Количество основы"
                 });
 
                 foreach (string parameter in parameters)
@@ -72,7 +76,6 @@ namespace FAMILY_INSTANSE_MAPPER
                         string ParamName = parameter;
                         string data = GetParameterValue(firstElement, ParamName);
                         SetValueToElementParameter(secondElement, ParamName, data);
-
                     }
                     catch (Exception ex)
                     {
@@ -86,16 +89,14 @@ namespace FAMILY_INSTANSE_MAPPER
             return Result.Succeeded;
         }
 
-        private string GetParameterValue
-            (Element element, string ParameterName)
+        private string GetParameterValue (Element element, string ParameterName)
 
         {
-            Parameter parameter = GetElementParameterByName
-                (element, ParameterName);
+            Parameter parameter = GetElementParameterByName (element, ParameterName);
              return parameter.AsValueString();
         }
-        private void SetValueToElementParameter
-            (Element element, string ParameterName, string Value)
+
+        private void SetValueToElementParameter (Element element, string ParameterName, string Value)
         {
             Parameter parameter = GetElementParameterByName(element, ParameterName);
             string dataType = parameter.Definition.ParameterType.ToString();
@@ -106,46 +107,76 @@ namespace FAMILY_INSTANSE_MAPPER
                         parameter.Set(Value);
                         break;
                     }
+                case "Text":
+                    {
+                        parameter.Set(Value);
+                        break;
+                    }
                 case "Integer":
+                    {
+                        parameter.Set(Int32.Parse(Value));
+                        break;
+                    }
+                case "Number":
                     {
                         parameter.Set(Int32.Parse(Value));
                         break;
                     }
                 case "Length":
                     {
-                        parameter.Set(Int32.Parse(Value) /304.8);
+                        parameter.Set(Int32.Parse(Value) / 304.8);
                         break;
                     }
                 case "BarDiameter":
                     {
-                        char[] chars = new char[2];
-                        chars[0] = ' ';
-                        chars[1] = 'm';
+                        if (string.IsNullOrEmpty(Value))
+                        {
+                            throw new Exception("Значение параметра не может быть пустым.");
+                        }
+                        Value = Value.Replace(" мм", "");
 
-                        Value = Value.Trim(chars);
-                        parameter.Set(Int32.Parse(Value)/304.8);
+                        Value = Value.Trim(' ', 'm');
+
+                        if (!int.TryParse(Value, out int result))
+                        {
+                            throw new Exception($"Невозможно преобразовать значение '{Value}' в целое число.");
+                        }
+
+                        parameter.Set(result / 304.8);
+
                         break;
                     }
+                case "YesNo":
+                    {
+                        if (Value == "False")
+                            parameter.Set(0);
+                        else parameter.Set(1);
+                        break;
+                    }
+                default:
+                    throw new Exception($"Тип данных: {dataType}");
+                    break;
             }
         }
 
-        private Parameter GetElementParameterByName
-            (Element element, string ParameterName)
+        private Parameter GetElementParameterByName (Element element, string ParameterName)
         {
-            Parameter parameterInstance = element.LookupParameter(ParameterName);
-            if (parameterInstance != null)
-            { return parameterInstance; }
+            Parameter instanceParameter = element.LookupParameter(ParameterName);
+            if (instanceParameter != null)
+            { return instanceParameter; }
 
             ElementId typeId = element.GetTypeId();
             if (typeId == ElementId.InvalidElementId)
-                return null;
+                throw new Exception("Не удалось получить тип по экземпляру семейства");
 
             Element typeElement = _doc.GetElement(typeId);
             if (typeElement == null)
-                return null;
+                throw new Exception("Не удалось получить тип по экземпляру семейства");
 
-            Parameter parameterType = typeElement.LookupParameter(ParameterName);
-            return parameterType;
+            Parameter symbolParameter = typeElement.LookupParameter(ParameterName);
+            if (symbolParameter == null)
+                throw new Exception("Не удалось найти параметр ни в экземпляре, ни в типе");
+            return symbolParameter;
 
         }
     }
